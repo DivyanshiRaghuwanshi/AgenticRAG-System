@@ -1,0 +1,33 @@
+# Core UI
+streamlit>=1.32.0
+
+# LangChain
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-text-splitters>=0.3.0
+
+# LLM providers
+langchain-groq>=0.2.0
+langchain-openai>=0.2.0
+langchain-google-genai>=2.0.0
+
+# Embeddings
+langchain-huggingface>=0.1.0
+sentence-transformers>=3.0.0
+
+# Agent orchestration and memory
+langgraph>=0.2.0
+
+# Vector store
+faiss-cpu>=1.7.4
+
+# Document loaders
+pypdf>=4.0.0
+docx2txt>=0.8
+
+# Web search
+requests>=2.31.0
+
+# Utilities
+python-dotenv>=1.0.0
