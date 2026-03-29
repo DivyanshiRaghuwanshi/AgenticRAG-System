@@ -1,13 +1,26 @@
 import os
 import tempfile
+import uuid
+import logging
 
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain_community.document_loaders import Docx2txtLoader
+from langchain_community.document_loaders import (
+    PyPDFLoader,
+    TextLoader,
+    Docx2txtLoader,
+    UnstructuredExcelLoader,
+    UnstructuredPowerPointLoader
+)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
+from models.llm import get_retrieval_llm
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from models.embeddings import get_embedding_model
 from config.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K
+
+# Set up logging for the MultiQueryRetriever so we can see the generated queries
+logging.basicConfig()
+logging.getLogger("langchain.retrievers.multi_query").setLevel(logging.INFO)
 
 
 def _get_loader(file_path, file_ext):
@@ -18,8 +31,12 @@ def _get_loader(file_path, file_ext):
         return TextLoader(file_path, encoding="utf-8")
     elif ext == "docx":
         return Docx2txtLoader(file_path)
+    elif ext in ["xlsx", "xls"]:
+        return UnstructuredExcelLoader(file_path)
+    elif ext in ["pptx", "ppt"]:
+        return UnstructuredPowerPointLoader(file_path)
     else:
-        raise ValueError(f"Unsupported file type '.{ext}'. Upload a PDF, TXT, or DOCX.")
+        raise ValueError(f"Unsupported file type '.{ext}'. Upload a PDF, TXT, DOCX, XLSX, or PPTX.")
 
 
 def load_documents(file_path, file_ext):
@@ -52,12 +69,50 @@ def build_vectorstore(chunks):
         raise RuntimeError(f"Error building vector store: {e}")
 
 
-def retrieve_relevant_chunks(query, vectorstore, k=TOP_K):
-    # KNN similarity search — returns top-k most relevant chunks
+def retrieve_relevant_chunks(query, vectorstore, k=TOP_K, llm=None):
+    """
+    Advanced Retrieval: Uses an LLM to generate 3 variations of the user's query,
+    searches the vector DB for all of them, and returns the unique chunks.
+    This significantly improves recall over standard KNN search.
+    """
     try:
-        return vectorstore.similarity_search(query, k=k)
+        if llm is None:
+            llm = get_retrieval_llm()
+        
+        # Step 1: Generate multiple queries
+        prompt = (
+            "You are an AI assistant. Your task is to generate 3 different versions of the given user "
+            "question to retrieve relevant documents from a vector database. Provide these alternative "
+            "questions separated by newlines, with no numbering or extra text.\n"
+            f"Original question: {query}"
+        )
+        try:
+            response = llm.invoke([HumanMessage(content=prompt)])
+            queries = response.content.strip().split("\n")
+            queries = [q.strip() for q in queries if q.strip()]
+        except Exception:
+            # Fallback if LLM fails
+            queries = []
+            
+        # Make sure the original query is always included
+        queries.append(query)
+        queries = list(set(queries))
+        
+        # Step 2: Search for all queries and combine unique chunks
+        unique_chunks = {}
+        for q in queries:
+            results = vectorstore.similarity_search(q, k=k)
+            for chunk in results:
+                # Use page_content as a simple uniqueness key
+                content_hash = hash(chunk.page_content)
+                if content_hash not in unique_chunks:
+                    unique_chunks[content_hash] = chunk
+                    
+        # Return the top chunks (we can return slightly more since we aggregated)
+        return list(unique_chunks.values())[:k * 2]
+        
     except Exception as e:
-        raise RuntimeError(f"Error during chunk retrieval: {e}")
+        raise RuntimeError(f"Error during advanced chunk retrieval: {e}")
 
 
 def process_uploaded_file(uploaded_file):

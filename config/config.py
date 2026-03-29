@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
-load_dotenv()
+
+# Use override=True so it strictly uses your .env file and ignores any old hidden Windows system variables
+load_dotenv(override=True)
 
 # API keys — read from Streamlit secrets first, then env vars, then empty string.
 # For local dev: add keys to .streamlit/secrets.toml (already in .gitignore)
@@ -30,6 +32,8 @@ GROQ_MODEL_NAME   = "llama-3.1-8b-instant"
 OPENAI_MODEL_NAME = "gpt-4o-mini"
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
 OPENROUTER_MODEL_NAME = "openai/gpt-5.4-pro"
+OLLAMA_MODEL_NAME = "llama3.2"  # Local self-hosted fallback model
+
 # temperature=0 for retrieval (factual), 0.3 for response (slight creativity)
 RETRIEVAL_TEMPERATURE = 0.0
 RESPONSE_TEMPERATURE  = 0.3

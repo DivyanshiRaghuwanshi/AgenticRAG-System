@@ -1,8 +1,8 @@
-# ResearchIQ - Intelligent Research Assistant
+# Agentic RAG Assistant
 
-ResearchIQ is a Streamlit-based assistant built for the NeoStats AI Engineer use case. It combines document Q&A (RAG) with live web search and supports Groq, OpenAI, and Gemini in one interface.
+Agentic RAG Assistant is an advanced AI system built to intelligently answer questions by combining document Q&A (RAG) with live web search. It combines document Q&A (RAG) with live web search and supports Groq, OpenAI, and Gemini in one interface.
 
-Live Demo: https://intelligent-research-assistant--researchiq-mj5nt7la2xgpwmurt5r.streamlit.app/
+Live Demo: [Live Demo Link here]
 
 ## Why this project
 
@@ -12,10 +12,11 @@ Most assistants are good at either static knowledge or current events, not both.
 
 ### 1. Document Q&A with RAG
 
-- Upload PDF, TXT, and DOCX files
+- Upload PDF, TXT, DOCX, XLSX (Excel), and PPTX (PowerPoint) files
 - Split documents into chunks with overlap for context continuity
 - Create embeddings locally using all-MiniLM-L6-v2
-- Store vectors in FAISS and retrieve top relevant chunks
+- Store vectors in FAISS
+- **Advanced Retrieval:** Uses an LLM-driven MultiQuery approach to generate 3 semantic variations of the user question, improving recall matching against FAISS.
 - Generate grounded answers from retrieved chunks with source references
 
 ### 2. Live Web Search
@@ -46,6 +47,7 @@ So, tool access is under user control. The agent decides how to answer only with
 - Groq: llama-3.1-8b-instant
 - OpenAI: gpt-4o-mini
 - Gemini: gemini-2.5-flash
+- Ollama: Self-hosted local fallback using llama3.2
 
 Default provider in the current codebase: Gemini.
 
@@ -54,6 +56,12 @@ Default provider in the current codebase: Gemini.
 - Uses MemorySaver with per-session thread_id
 - Keeps context manageable by trimming to recent messages
 - Supports long conversations without unbounded prompt growth
+
+### 7. MCP Server Integration (Bonus)
+
+- Includes a standalone `mcp_server.py` implementation
+- Decouples the backend RAG and Web tools as a Model Context Protocol (MCP) JSON-RPC STDIO server
+- Can be plugged securely into modern external AI IDEs (like Cursor or Claude Desktop)
 
 ## How it works
 
@@ -68,6 +76,7 @@ Default provider in the current codebase: Gemini.
 ```text
 project/
 |-- app.py
+|-- mcp_server.py
 |-- requirements.txt
 |-- README.md
 |
@@ -102,7 +111,7 @@ project/
 | LLM integrations | langchain-openai, langchain-groq, langchain-google-genai |
 | Embeddings | langchain-huggingface (all-MiniLM-L6-v2) |
 | Vector store | FAISS |
-| Document loaders | PyPDFLoader, TextLoader, Docx2txtLoader |
+| Document loaders | PyPDFLoader, TextLoader, Docx2txtLoader, UnstructuredExcelLoader, UnstructuredPowerPointLoader |
 | Text splitting | RecursiveCharacterTextSplitter |
 | Web search | Serper API via requests |
 
@@ -248,7 +257,7 @@ LangGraph's `create_react_agent` with `MemorySaver` gives proper checkpoint-base
 `all-MiniLM-L6-v2` runs entirely on CPU with no API calls. This means document indexing is free regardless of file size, and there's no network dependency during the embedding step. For a demo and case study submission, this is the right call. A production deployment targeting scale would switch to a hosted embedding service.
 
 **Why FAISS over a cloud vector database?**
-FAISS is in-memory and has zero infrastructure overhead. For a single-session demo, it's perfectly appropriate. The architecture is modular enough that swapping FAISS for Pinecone or Weaviate would only require changing `rag_utils.py` — the rest of the system doesn't care.
+FAISS is entirely in-memory, highly portable across operating systems, and has zero infrastructure overhead. While Milvus Lite is a powerful choice, it frequently triggers architecture compilation errors on Windows OS environments. FAISS guarantees maximum cross-platform compatibility. For a single-session demo, it's perfectly appropriate. The architecture is modular enough that swapping FAISS for Pinecone or Weaviate would only require changing `rag_utils.py` — the rest of the system doesn't care.
 
 **Why two separate LLM instances at different temperatures?**
 temperature=0 for fact extraction from documents, temperature=0.3 for conversational responses. Mixing these would compromise one or the other.

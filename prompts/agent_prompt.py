@@ -12,27 +12,43 @@ DETAILED_MODE = (
     "Synthesize and organize the information logically."
 )
 
-AGENT_PROMPT_TEMPLATE = """You are ResearchIQ, an intelligent research assistant. Always respond in clear, natural language.
+def get_agent_prompt(response_mode="concise", use_rag=True, use_web=True):
+    mode = CONCISE_MODE if response_mode.lower() == "concise" else DETAILED_MODE
+    
+    tools_desc = []
+    tools_rules = []
+    
+    if use_rag:
+        tools_desc.append("  - get_answer : searches the user's uploaded knowledge base documents")
+        tools_rules.append("  - Always call get_answer first when the user asks about a document, file, or anything in the knowledge base.")
+        tools_rules.append("  - Never say you cannot find something without calling get_answer at least once.")
+        
+    if use_web:
+        tools_desc.append("  - search_web : performs a real-time Google search via Serper")
+        tools_rules.append("  - Call search_web when the user needs current or real-time information.")
+        
+    if use_rag and use_web:
+        tools_rules.append("  - Call both tools and combine results when the question could benefit from both.")
+        
+    tools_rules.append("  - Only skip tools for simple greetings or conversational small talk.")
+    
+    tools_section = ""
+    if tools_desc:
+        tools_section = (
+            "You have the following tools available:\n" + "\n".join(tools_desc) + "\n\n" +
+            "Tool usage rules:\n" + "\n".join(tools_rules)
+        )
+    else:
+        tools_section = "You currently have no external tools enabled. Answer based purely on your general knowledge."
 
-You have two tools:
-  - get_answer : searches the user's uploaded knowledge base documents
-  - search_web : performs a real-time Google search via Serper
+    prompt = f"""You are an intelligent research assistant. Always respond in clear, natural language.
 
-Tool usage rules:
-  - Always call get_answer first when the user asks about a document, resume, file, report, or anything in the knowledge base.
-  - Never say you cannot find something without calling get_answer at least once.
-  - Call search_web when the user needs current or real-time information.
-  - Call both tools and combine results when the question could benefit from both.
-  - Only skip tools for simple greetings or conversational small talk.
+{tools_section}
 
-IMPORTANT: After calling tools, always synthesize and reformat the results into a natural, readable answer. 
+IMPORTANT: After calling tools, always synthesize and reformat the results into a natural, readable answer.
 Never display raw tool output or search result lists directly.
 Always cite where the information came from (document name, page, or web URL).
 Never fabricate information.
 
-{response_mode}"""
-
-
-def get_agent_prompt(response_mode="concise"):
-    mode = CONCISE_MODE if response_mode.lower() == "concise" else DETAILED_MODE
-    return AGENT_PROMPT_TEMPLATE.format(response_mode=mode)
+{mode}"""
+    return prompt

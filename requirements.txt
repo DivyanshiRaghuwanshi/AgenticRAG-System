@@ -25,6 +25,9 @@ faiss-cpu
 # Document loaders
 pypdf
 docx2txt
+openpyxl
+python-pptx
+unstructured
 
 # Web search
 requests

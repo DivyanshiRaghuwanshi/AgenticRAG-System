@@ -29,7 +29,7 @@ def create_get_answer_tool(vectorstore, retrieval_llm):
     Factory: returns the get_answer tool with vectorstore and LLM injected.
 
     Dual-LLM RAG pipeline:
-      Step 1 → FAISS KNN search (top_k=7) retrieves the most relevant chunks
+      Step 1 → Advanced MultiQuery search retrieves the most relevant chunks
       Step 2 → retrieval_llm (temperature=0) extracts a grounded answer from
                those chunks using RAG_AGENT_PROMPT as its system instruction
     """
@@ -41,8 +41,8 @@ def create_get_answer_tool(vectorstore, retrieval_llm):
             if vectorstore is None:
                 return "No knowledge base loaded. Please upload a document first."
 
-            # Step 1: KNN retrieval — fetch top_k=7 most relevant chunks
-            chunks = retrieve_relevant_chunks(query, vectorstore, k=TOP_K)
+            # Step 1: Advanced retrieval — fetch relevant chunks using MultiQuery
+            chunks = retrieve_relevant_chunks(query, vectorstore, k=TOP_K, llm=retrieval_llm)
 
             if not chunks:
                 return "No relevant information found in the uploaded documents."

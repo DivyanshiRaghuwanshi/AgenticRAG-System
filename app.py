@@ -1,7 +1,7 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="ResearchIQ — Research Assistant",
+    page_title="Agentic RAG Assistant",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -15,7 +15,7 @@ import config.config as cfg
 from models.llm import get_retrieval_llm, get_response_llm
 from utils.rag_utils import process_uploaded_file
 from utils.tools import create_get_answer_tool, create_search_web_tool
-from utils.agent_utils import build_agent, run_agent
+from utils.agent_utils import build_agent, run_agent_stream
 from prompts.agent_prompt import get_agent_prompt
 
 logging.basicConfig(level=logging.INFO)
@@ -127,7 +127,7 @@ def _build_or_rebuild_agent(provider, response_mode, use_rag, use_web):
         agent = build_agent(
             response_llm=response_llm,
             tools=tools,
-            system_prompt=get_agent_prompt(response_mode),
+            system_prompt=get_agent_prompt(response_mode, use_rag, use_web),
             memory=st.session_state.memory,
         )
 
@@ -142,7 +142,7 @@ def _build_or_rebuild_agent(provider, response_mode, use_rag, use_web):
 # Sidebar
 with st.sidebar:
 
-    st.markdown("## 🔍 ResearchIQ")
+    st.markdown("## 🔍 RAG Assistant")
     st.markdown(
         "<p style='color:#8b92a5;font-size:0.85rem;margin-top:-0.5rem;'>"
         "Document + Web Research Assistant</p>",
@@ -151,7 +151,7 @@ with st.sidebar:
     st.divider()
 
     # LLM provider selection
-    provider_options = ["groq", "openai", "gemini"]
+    provider_options = ["groq", "openai", "gemini", "ollama"]
     provider = st.selectbox(
         "LLM Provider",
         options=provider_options,
@@ -182,11 +182,11 @@ with st.sidebar:
 
     st.divider()
     st.markdown("**Upload Knowledge Base**")
-    st.caption("PDF, TXT, or DOCX. Multiple files supported.")
+    st.caption("PDF, TXT, DOCX, XLSX, or PPTX. Multiple files supported.")
 
     uploaded_files = st.file_uploader(
         "Upload Documents",
-        type=["pdf", "txt", "docx"],
+        type=["pdf", "txt", "docx", "xlsx", "xls", "pptx", "ppt"],
         accept_multiple_files=True,
         label_visibility="collapsed",
     )
@@ -233,22 +233,34 @@ with st.sidebar:
     llm_ok    = bool(
         (provider == "groq"   and cfg.GROQ_API_KEY)  or
         (provider == "openai" and cfg.OPENAI_API_KEY) or
-        (provider == "gemini" and cfg.GEMINI_API_KEY)
+        (provider == "gemini" and cfg.GEMINI_API_KEY) or
+        (provider == "ollama") # Ollama runs locally, no API key required
     )
     search_ok = bool(cfg.SERPER_API_KEY)
     kb_ok     = st.session_state.vectorstore is not None
 
     llm_icon    = "✔" if llm_ok    else "✖"
-    search_icon = "✔" if search_ok else "✖"
     kb_icon     = "✔" if kb_ok     else "–"
+    
+    if not use_web:
+        search_icon = "–"
+        search_class = "status-warn"
+        search_label = "Web Search (Disabled)"
+    elif not search_ok:
+        search_icon = "✖"
+        search_class = "status-err"
+        search_label = "Web Search (Missing Key)"
+    else:
+        search_icon = "✔"
+        search_class = "status-ok"
+        search_label = "Web Search (Serper)"
 
     llm_class    = "status-ok" if llm_ok    else "status-err"
-    search_class = "status-ok" if search_ok else "status-warn"
     kb_class     = "status-ok" if kb_ok     else "status-warn"
 
     st.markdown(
         f"<span class='{llm_class}'>{llm_icon} LLM ({provider})</span><br>"
-        f"<span class='{search_class}'>{search_icon} Web Search (Serper)</span><br>"
+        f"<span class='{search_class}'>{search_icon} {search_label}</span><br>"
         f"<span class='{kb_class}'>{kb_icon} Knowledge Base</span>",
         unsafe_allow_html=True,
     )
@@ -266,7 +278,7 @@ with st.sidebar:
 
 # Main chat area
 st.markdown(
-    "<div class='app-header'><h1>ResearchIQ</h1>"
+    "<div class='app-header'><h1>Agentic RAG Assistant</h1>"
     "<p>Ask questions from your documents or let me search the web for you.</p></div>",
     unsafe_allow_html=True,
 )
@@ -311,16 +323,52 @@ if user_input:
         st.stop()
 
     with st.chat_message("assistant"):
-        with st.spinner("Thinking…"):
-            try:
-                reply = run_agent(
-                    agent=st.session_state.agent,
-                    user_message=user_input,
-                    thread_id=st.session_state.thread_id,
-                )
-                st.markdown(reply)
-                st.session_state.messages.append({"role": "assistant", "content": reply})
+        status_container = st.status("Agent is thinking...", expanded=True)
+        final_answer = ""
+        try:
+            # We iterate over the stream to show the thought process
+            for messages in run_agent_stream(
+                agent=st.session_state.agent,
+                user_message=user_input,
+                thread_id=st.session_state.thread_id
+            ):
+                # Look at the most recently added message
+                last_msg = messages[-1]
+                
+                # If it's an AI message, it might be calling a tool
+                if last_msg.type == "ai":
+                    if last_msg.tool_calls:
+                        for tool_call in last_msg.tool_calls:
+                            tool_name = tool_call["name"]
+                            status_container.write(f"🧠 Agent decided to use tool: `{tool_name}`...")
+                    elif last_msg.content:
+                        # This is the final text response normally
+                        status_container.write("✅ Agent formulated the final response.")
+                        
+                        # Handle varied response formats (some LLMs like Gemini return lists of dictionaries)
+                        content = last_msg.content
+                        if isinstance(content, list):
+                            text_parts = []
+                            for part in content:
+                                if isinstance(part, dict) and "text" in part:
+                                    text_parts.append(part["text"])
+                                elif isinstance(part, str):
+                                    text_parts.append(part)
+                            final_answer = "\n".join(text_parts)
+                        else:
+                            final_answer = str(content)
 
-            except Exception as e:
-                st.error(f"Something went wrong: {e}")
-                logger.error(f"Agent error: {e}", exc_info=True)
+                # If it's a Tool message, it means the tool finished executing
+                elif last_msg.type == "tool":
+                    status_container.write(f"🔍 Tool `{last_msg.name}` returned results.")
+            
+            status_container.update(label="Response generated", state="complete", expanded=False)
+            
+            # Display the final answer outside the status container
+            st.markdown(final_answer)
+            st.session_state.messages.append({"role": "assistant", "content": final_answer})
+
+        except Exception as e:
+            status_container.update(label="Error occurred", state="error")
+            st.error(f"Something went wrong: {e}")
+            logger.error(f"Agent error: {e}", exc_info=True)

@@ -1,56 +1,47 @@
 import logging
 
+from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain.agents import create_agent
 
 from config.config import MAX_HISTORY_MESSAGES
 
 logger = logging.getLogger(__name__)
 
-from langchain.agents.middleware import AgentMiddleware
-
-class TrimMessagesMiddleware(AgentMiddleware):
-
-    def before_model(self, state):
-        messages = state.get("messages", [])
-        if len(messages) > MAX_HISTORY_MESSAGES:
-            state["messages"] = messages[-MAX_HISTORY_MESSAGES:]
-        return state
-
-
 def build_agent(response_llm, tools, system_prompt, memory):
-    """Builds a LangGraph ReAct agent with InMemorySaver and message trimming."""
+    """Builds a LangGraph ReAct agent with InMemorySaver."""
     try:
-        return create_agent(
+        def state_modifier(state):
+            # Message trimming to avoid token limits
+            messages = state.get("messages", [])
+            if len(messages) > MAX_HISTORY_MESSAGES:
+                # Keep system prompt if it's the first message, and the most recent N messages
+                if len(messages) > 0 and messages[0].type == "system":
+                    state["messages"] = [messages[0]] + messages[-(MAX_HISTORY_MESSAGES-1):]
+                else:
+                    state["messages"] = messages[-MAX_HISTORY_MESSAGES:]
+            return state
+
+        return create_react_agent(
             model=response_llm,
             tools=tools,
             checkpointer=memory,
-            system_prompt=system_prompt,
-            middleware=[TrimMessagesMiddleware()],
+            prompt=system_prompt, # pass prompt instead of state_modifier
         )
     except Exception as e:
         raise RuntimeError(f"Failed to build agent: {e}")
 
-
-def run_agent(agent, user_message, thread_id="default"):
-    """Sends a message to the agent and returns the reply string."""
+def run_agent_stream(agent, user_message, thread_id="default"):
+    """Yields events from the agent so the UI can show the thinking process."""
     try:
-        result = agent.invoke(
-            {"messages": [HumanMessage(content=user_message)]},
-            config={"configurable": {"thread_id": thread_id}},
-        )
-        for msg in reversed(result.get("messages", [])):
-            if isinstance(msg, AIMessage) and msg.content:
-                content = msg.content
-
-                if isinstance(content, list):
-                    content = "\n".join(
-                        part["text"] for part in content if part.get("type") == "text"
-                    )
-
-                return content
-        return "I could not generate a response. Please try again."
+        config = {"configurable": {"thread_id": thread_id}}
+        inputs = {"messages": [("user", user_message)]}
+        
+        # Stream the agent's work
+        for event in agent.stream(inputs, config=config, stream_mode="values"):
+            # We yield the whole list of messages every time the state changes
+            if "messages" in event:
+                yield event["messages"]
     except Exception as e:
         logger.error(f"Agent error (thread={thread_id}): {e}")
         raise RuntimeError(f"Agent error: {e}")
