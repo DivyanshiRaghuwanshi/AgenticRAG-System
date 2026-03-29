@@ -2,7 +2,7 @@
 
 Agentic RAG Assistant is an advanced AI system built to intelligently answer questions by combining document Q&A (RAG) with live web search. It combines document Q&A (RAG) with live web search and supports Groq, OpenAI, and Gemini in one interface.
 
-Live Demo: [Live Demo Link here]
+Live Demo: https://agenticrag-system-ssgr9qksfpbm52omuekgu2.streamlit.app/
 
 ## Why this project
 
