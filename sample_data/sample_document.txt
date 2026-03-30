@@ -1,0 +1,15 @@
+# The Future of Agentic Retrieval-Augmented Generation (RAG)
+
+## Overview
+Agentic RAG represents a massive shift from traditional RAG architectures. While traditional RAG simply fetches chunks of text based on vector similarity and passes them to an LLM, Agentic RAG gives the AI a set of tools and the autonomy to decide how to use them.
+
+## Key Components
+1. **Multi-Query Routing:** The agent can rewrite a user's query into multiple different search terms to cast a wider net in the vector database.
+2. **Tool Selection:** The agent can choose between searching a local FAISS vector database or querying the live web using the Serper API.
+3. **Reasoning Loop:** Using LangGraph, the ReAct (Reason + Act) agent evaluates if the retrieved context is sufficient to answer the prompt. If not, it can search again.
+
+## Implementation Details
+In standard test environments, developers have transitioned away from complex vector databases like Milvus Lite for local prototyping, favoring in-memory FAISS for Windows compatibility. Furthermore, utilizing local embedding models like HuggingFace's "all-MiniLM-L6-v2" ensures strict data privacy.
+
+## Conclusion
+Agentic systems reduce AI hallucinations because the AI evaluates its own retrieved evidence before presenting an answer to the human user.
