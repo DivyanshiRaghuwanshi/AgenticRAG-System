@@ -305,3 +305,11 @@ Another Streamlit instance is running. Kill it first:
 Get-Process python | Stop-Process -Force
 streamlit run app.py
 ```
+
+---
+
+## Sample Data for Testing
+
+If you would like to test the RAG capabilities with the exact document used in the demo video, you can download the sample PDF here:
+[Download Sample Data](https://drive.google.com/file/d/1NJZpN-BpH1DGmGw9TadmhU0-42ZdPwcr/view?usp=sharing)
+
