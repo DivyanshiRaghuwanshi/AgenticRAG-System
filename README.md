@@ -4,6 +4,8 @@ Agentic RAG Assistant is an advanced AI system built to intelligently answer que
 
 Live Demo: https://agenticrag-system-ssgr9qksfpbm52omuekgu2.streamlit.app/
 
+Video Recording: https://drive.google.com/file/d/1OOOm06JvsRTYyjCt3P4N0iTRR_286Yys/view?usp=sharing
+
 ## Why this project
 
 Most assistants are good at either static knowledge or current events, not both. This project solves that gap by letting users query uploaded files and the web from the same chat session, with clear control over how responses are generated.
@@ -57,7 +59,7 @@ Default provider in the current codebase: Gemini.
 - Keeps context manageable by trimming to recent messages
 - Supports long conversations without unbounded prompt growth
 
-### 7. MCP Server Integration (Bonus)
+### 7. MCP Server Integration
 
 - Includes a standalone `mcp_server.py` implementation
 - Decouples the backend RAG and Web tools as a Model Context Protocol (MCP) JSON-RPC STDIO server
