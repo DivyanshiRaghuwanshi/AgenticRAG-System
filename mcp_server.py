@@ -42,7 +42,7 @@ def handle_initialize(request: Dict):
     mcp_respond(request["id"], {
         "protocolVersion": "0.1.0",
         "serverInfo": {
-            "name": "ResearchIQ-MCP",
+            "name": "Agentic-RAG-Assistant-MCP",
             "version": "1.0.0"
         },
         "capabilities": {
