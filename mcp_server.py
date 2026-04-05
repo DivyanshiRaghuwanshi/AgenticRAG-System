@@ -103,13 +103,13 @@ def handle_tool_call(request: Dict):
         try:
             from config.config import TOP_K
             from models.embeddings import get_embedding_model
-            from langchain_milvus import Milvus
+            from langchain_community.vectorstores import FAISS
             
-            # Find the active Milvus DB
+            # Find the active FAISS DB
             embedding_model = get_embedding_model()
-            # If the user has initialized a DB in the UI, we try to load it
-            if os.path.exists("./milvus_local.db"):
-                vs = Milvus(embedding_model, connection_args={"uri": "./milvus_local.db"}, collection_name="mcp_read")
+            # If the user has initialized a DB locally, we try to load it
+            if os.path.exists("./faiss_index"):
+                vs = FAISS.load_local("./faiss_index", embedding_model, allow_dangerous_deserialization=True)
                 # Fallback to simple similarity search since MCP doesn't load the LLM multi-query dynamically easily
                 chunks = vs.similarity_search(query, k=TOP_K)
                 res = "\n".join([c.page_content for c in chunks])
@@ -123,7 +123,7 @@ def handle_tool_call(request: Dict):
 
 async def main():
     """Main loop for reading MCP JSON-RPC messages from stdin."""
-    logger.info("Starting ResearchIQ MCP Server...")
+    logger.info("Starting Agentic RAG Assistant MCP Server...")
     while True:
         line = sys.stdin.readline()
         if not line:
